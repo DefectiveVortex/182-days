@@ -28,8 +28,9 @@ struct RootView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Palette.background.ignoresSafeArea())
         // Scrolled content stops at the status bar instead of running under the clock.
-        .overlay(alignment: .top) {
-            Palette.background.frame(height: 0).ignoresSafeArea(edges: .top).accessibilityHidden(true)
+        // (An inset, not an overlay: the scroll views run to the top of the screen, so an overlay starts at y = 0.)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            Color.clear.frame(height: 0).background(Palette.background, ignoresSafeAreaEdges: .top)
         }
         .safeAreaInset(edge: .bottom, spacing: 0) { TabBar(selection: $tab) }
         // A notification tap: go to the tab that handles it; that screen clears the route.
