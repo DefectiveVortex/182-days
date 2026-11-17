@@ -27,6 +27,10 @@ struct RootView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Palette.background.ignoresSafeArea())
+        // Scrolled content stops at the status bar instead of running under the clock.
+        .overlay(alignment: .top) {
+            Palette.background.frame(height: 0).ignoresSafeArea(edges: .top).accessibilityHidden(true)
+        }
         .safeAreaInset(edge: .bottom, spacing: 0) { TabBar(selection: $tab) }
         // A notification tap: go to the tab that handles it; that screen clears the route.
         .onChange(of: AppRoute.shared.pending, initial: true) { _, pending in
