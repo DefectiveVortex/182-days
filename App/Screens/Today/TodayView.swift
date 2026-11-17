@@ -70,6 +70,7 @@ struct TodayView: View {
 
     private var pushUps: some View {
         let note = model.pushUps.note(kind: model.kind)
+        let ghost = model.pushUps.ghost
         return RuledSection {
             HStack(alignment: .firstTextBaseline) {
                 Text.label("Push-ups")
@@ -105,7 +106,7 @@ struct TodayView: View {
             .contextMenu { undoMenu(sets: model.pushUps.sets, noun: "push-ups", undo: actions.undoPushUps) }
         }
         .sensoryFeedback(trigger: model.pushUps.today) { old, new in
-            feedback(old: old, new: new, ghost: model.pushUps.ghost)
+            Self.feedback(old: old, new: new, ghost: ghost)
         }
     }
 
@@ -113,6 +114,7 @@ struct TodayView: View {
 
     private var sitUps: some View {
         let note = model.sitUps.note(kind: model.kind)
+        let ghost = model.sitUps.ghost
         return RuledSection {
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: 4) {
@@ -144,7 +146,7 @@ struct TodayView: View {
                 .accessibilityHidden(true)
         }
         .sensoryFeedback(trigger: model.sitUps.today) { old, new in
-            feedback(old: old, new: new, ghost: model.sitUps.ghost)
+            Self.feedback(old: old, new: new, ghost: ghost)
         }
     }
 
@@ -191,7 +193,7 @@ struct TodayView: View {
         }
     }
 
-    private func feedback(old: Int, new: Int, ghost: Int) -> SensoryFeedback? {
+    private nonisolated static func feedback(old: Int, new: Int, ghost: Int) -> SensoryFeedback? {
         if new < old { return .impact(weight: .light) }
         if ghost > 0, old <= ghost, new > ghost { return .success }
         return .impact(weight: .medium)

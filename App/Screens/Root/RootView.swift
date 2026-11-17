@@ -1,15 +1,14 @@
 import SwiftUI
 
 /// The app's shell: four tabs under a hairline, drawn to the design (square, no glass).
-/// The @main scene shows `RootView(today: …)`; `-demo` passes the demo store.
-struct RootView<Today: View>: View {
-    @ViewBuilder var today: Today
+/// DaysApp shows `RootView()` with the LogStore in the environment.
+struct RootView: View {
     @State private var tab: AppTab = .today
 
     var body: some View {
         Group {
             switch tab {
-            case .today: today
+            case .today: TodayScreen()
             case .plan: Placeholder(title: "Plan", line: "Your week, hour by hour.")
             case .log: Placeholder(title: "Log", line: "Every day you've closed.")
             case .halfYear: Placeholder(title: "182", line: "The half-year at a glance.")
@@ -123,11 +122,5 @@ private struct Placeholder: View {
 }
 
 #Preview("Root") {
-    @Previewable @State var store = PreviewTodayStore(.preview)
-    RootView { TodayView(model: store.model, actions: store.actions) }
-}
-
-#Preview("Root, must day") {
-    @Previewable @State var store = PreviewTodayStore(.previewMust)
-    RootView { TodayView(model: store.model, actions: store.actions) }
+    RootView().environment(try! LogStore.inMemory())
 }
