@@ -17,6 +17,12 @@ struct TodayModel: Equatable, Sendable {
         var sets: [Int] = []
     }
 
+    /// The attempt that two slips in a row ended yesterday; today is day 1 of the next.
+    struct EndedAttempt: Equatable, Sendable {
+        var number: Int
+        var length: Int
+    }
+
     struct Block: Equatable, Sendable {
         var title: String
         var until: Date
@@ -31,6 +37,7 @@ struct TodayModel: Equatable, Sendable {
     var attempt: Int = 1
     var slipsThisAttempt: Int = 0
     var lastSlipDaysAgo: Int?
+    var endedAttempt: EndedAttempt?
 
     var pushUps: Count
     var sitUps: Count

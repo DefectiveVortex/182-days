@@ -13,7 +13,16 @@ struct TodayView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: Metrics.sectionGap) {
                 header
-                if model.kind == .must { MustBanner() } else { status }
+                if let ended = model.endedAttempt {
+                    Banner(
+                        title: "ATTEMPT \(ended.number) ENDED AT \(ended.length) DAYS.",
+                        line: "Two slips in a row. Attempt \(ended.number + 1) starts today, at day 1. The history stays."
+                    )
+                } else if model.kind == .must {
+                    Banner(title: "YESTERDAY WAS YOUR SLIP.", line: "Today can't be. One set of anything keeps the run alive.")
+                } else {
+                    status
+                }
                 pushUps
                 sitUps
                 posture
@@ -236,11 +245,14 @@ private struct NoteText: View {
     }
 }
 
-private struct MustBanner: View {
+/// Orange block, dark text: the only filled surface on Today, kept for must days and an ended attempt.
+private struct Banner: View {
+    var title: String
+    var line: String
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text("YESTERDAY WAS YOUR SLIP.").textStyle(.banner)
-            Text("Today can't be. One set of anything keeps the run alive.")
+            Text(title).textStyle(.banner)
+            Text(line)
                 .textStyle(.bannerBody)
         }
         .foregroundStyle(Palette.onFill)

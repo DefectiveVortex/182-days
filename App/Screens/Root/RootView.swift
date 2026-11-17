@@ -3,9 +3,20 @@ import SwiftUI
 /// The app's shell: four tabs under a hairline, drawn to the design (square, no glass).
 /// DaysApp shows `RootView()` with the LogStore in the environment.
 struct RootView: View {
-    @State private var tab: AppTab = .today
+    @Environment(LogStore.self) private var store
+    @State private var tab: AppTab = LaunchScreen.argument.flatMap(AppTab.init(screen:)) ?? .today
 
     var body: some View {
+        if store.isOnboarded {
+            tabs
+        } else {
+            OnboardingView(step: LaunchScreen.argument.flatMap(OnboardingView.Step.init(screen:)) ?? .rule)
+                .preferredColorScheme(.dark)
+                .tint(Palette.accent)
+        }
+    }
+
+    private var tabs: some View {
         Group {
             switch tab {
             case .today: TodayScreen()
@@ -22,9 +33,38 @@ struct RootView: View {
     }
 }
 
+/// `-screen <name>` (CI screenshots): today | plan | log | 182 | onboarding | onboarding-numbers | onboarding-day.
+enum LaunchScreen {
+    static var argument: String? {
+        let args = ProcessInfo.processInfo.arguments
+        guard let i = args.firstIndex(of: "-screen"), i + 1 < args.count else { return nil }
+        return args[i + 1]
+    }
+}
+
+extension OnboardingView.Step {
+    init?(screen: String) {
+        switch screen {
+        case "onboarding": self = .rule
+        case "onboarding-numbers": self = .numbers
+        case "onboarding-day": self = .day
+        default: return nil
+        }
+    }
+}
+
 enum AppTab: String, CaseIterable, Identifiable {
     case today, plan, log, halfYear
     var id: String { rawValue }
+    init?(screen: String) {
+        switch screen {
+        case "today": self = .today
+        case "plan": self = .plan
+        case "log": self = .log
+        case "182": self = .halfYear
+        default: return nil
+        }
+    }
     var title: String {
         switch self {
         case .today: "Today"
