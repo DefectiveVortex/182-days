@@ -85,7 +85,6 @@ targets:
       path: Support/DaysWidgets.entitlements
       properties:
         com.apple.security.application-groups: [group.com.viraajrandhawa.182days]
-        com.apple.developer.usernotifications.time-sensitive: true
     settings:
       base:
         PRODUCT_NAME: DaysWidgets
