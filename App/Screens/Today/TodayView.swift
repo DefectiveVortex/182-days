@@ -93,9 +93,11 @@ struct TodayView: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
                     .contentTransition(.numericText(value: Double(model.pushUps.today)))
-                Text(model.pushUps.ghostLabel)
-                    .textStyle(.ghostLabel)
-                    .foregroundStyle(Palette.muted)
+                if model.pushUps.ghost > 0 {
+                    Text(model.pushUps.ghostLabel)
+                        .textStyle(.ghostLabel)
+                        .foregroundStyle(Palette.muted)
+                }
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(Text("Push-ups"))
