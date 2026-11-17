@@ -1,0 +1,191 @@
+# Every push: Linux `swift test` for DaysCore, macOS simulator build + screenshots.
+# workflow_dispatch (handler only): archive, sign, verify and upload to TestFlight.
+# No builds ever run on berry. Owner: Days 1.
+name: CI
+
+on:
+  push:
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: "Upload to App Store Connect (off = archive and sign only)"
+        type: boolean
+        default: true
+
+concurrency:
+  group: ci-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
+
+jobs:
+  core:
+    name: core (linux swift test)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container: swift:6.2
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift --version
+      - run: swift test --package-path Core
+
+  app:
+    name: app (simulator build + screenshots)
+    runs-on: macos-26
+    timeout-minutes: 45
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - run: xcodebuild -version
+      - run: brew install xcodegen
+      - run: xcodegen generate
+      - name: Build for the simulator
+        run: |
+          set -o pipefail
+          xcodebuild build -project Days.xcodeproj -scheme Days \
+            -destination 'generic/platform=iOS Simulator' -configuration Debug \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO \
+            | tee build.log | grep -E "error:|warning: |BUILD (SUCCEEDED|FAILED)" || true
+          grep -q "BUILD SUCCEEDED" build.log
+      - name: Screenshots
+        run: .github/scripts/screenshots.sh build/Build/Products/Debug-iphonesimulator/Days.app shots
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screenshots
+          path: shots/*.png
+          retention-days: 7
+          if-no-files-found: ignore
+
+  testflight:
+    name: archive, sign, upload
+    if: github.event_name == 'workflow_dispatch'
+    needs: [core, app]
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+      BUNDLE_ID: com.viraajrandhawa.182days
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Required secrets are present
+        env:
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          IOS_DIST_P12_BASE64: ${{ secrets.IOS_DIST_P12_BASE64 }}
+          IOS_DIST_P12_PASSWORD: ${{ secrets.IOS_DIST_P12_PASSWORD }}
+        run: |
+          missing=0
+          for v in ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8 APPLE_TEAM_ID IOS_DIST_P12_BASE64 IOS_DIST_P12_PASSWORD; do
+            if [ -z "${!v}" ]; then echo "::error::repository secret $v is not set"; missing=1; fi
+          done
+          exit $missing
+
+      - name: Xcode is new enough for App Store uploads
+        run: |
+          xcodebuild -version
+          major=$(xcodebuild -version | awk 'NR==1{split($2,a,"."); print a[1]}')
+          if [ "$major" -lt 26 ]; then echo "::error::Xcode $major is too old; need 26+"; exit 1; fi
+
+      - name: Install the distribution certificate and the API key
+        env:
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          IOS_DIST_P12_BASE64: ${{ secrets.IOS_DIST_P12_BASE64 }}
+          IOS_DIST_P12_PASSWORD: ${{ secrets.IOS_DIST_P12_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          KC_PW="$(uuidgen)"
+          security create-keychain -p "$KC_PW" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KC_PW" "$KEYCHAIN"
+          printf '%s' "$IOS_DIST_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/dist.p12"
+          security import "$RUNNER_TEMP/dist.p12" -P "$IOS_DIST_P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          rm -f "$RUNNER_TEMP/dist.p12"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KC_PW" "$KEYCHAIN" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          security find-identity -v -p codesigning "$KEYCHAIN" | grep -q "Apple Distribution" \
+            || { echo "::error::no Apple Distribution identity after import"; exit 1; }
+          mkdir -p "$HOME/.appstoreconnect/private_keys"
+          KEY_PATH="$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8"
+          printf '%s\n' "$ASC_KEY_P8" > "$KEY_PATH"
+          echo "KEY_PATH=$KEY_PATH" >> "$GITHUB_ENV"
+
+      - run: brew install xcodegen && xcodegen generate
+
+      - name: Archive (automatic signing registers the IDs, the App Group and the profiles)
+        run: |
+          set -euo pipefail
+          # A rejected build burns its number; run_number only grows and the attempt digit keeps re-runs apart.
+          BUILD_NUMBER=$(( GITHUB_RUN_NUMBER * 10 + GITHUB_RUN_ATTEMPT ))
+          echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$GITHUB_ENV"
+          xcodebuild archive -project Days.xcodeproj -scheme Days -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/Days.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$KEY_PATH" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+            | tee "$RUNNER_TEMP/archive.log" | grep -E "error:|warning: |ARCHIVE (SUCCEEDED|FAILED)" || true
+          grep -q "ARCHIVE SUCCEEDED" "$RUNNER_TEMP/archive.log"
+
+      - name: Export the IPA
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>teamID</key><string>${APPLE_TEAM_ID}</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>uploadSymbols</key><true/>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict></plist>
+          PLIST
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/Days.xcarchive" \
+            -exportPath "$RUNNER_TEMP/export" -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$KEY_PATH" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+          IPA=$(ls "$RUNNER_TEMP"/export/*.ipa | head -1)
+          echo "IPA=$IPA" >> "$GITHUB_ENV"
+
+      - name: Verify the IPA before it leaves the runner
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/ipa" && mkdir -p "$RUNNER_TEMP/ipa" && unzip -q "$IPA" -d "$RUNNER_TEMP/ipa"
+          APP=$(ls -d "$RUNNER_TEMP"/ipa/Payload/*.app)
+          plist="$APP/Info.plist"
+          get() { plutil -extract "$1" raw -o - "$2"; }
+          echo "bundle  $(get CFBundleIdentifier "$plist") $(get CFBundleShortVersionString "$plist") ($(get CFBundleVersion "$plist"))"
+          [ "$(get CFBundleIdentifier "$plist")" = "$BUNDLE_ID" ] || { echo "::error::wrong bundle id"; exit 1; }
+          [ "$(get CFBundleVersion "$plist")" = "$BUILD_NUMBER" ] || { echo "::error::build number not applied"; exit 1; }
+          APPEX="$APP/PlugIns/DaysWidgets.appex"
+          [ -d "$APPEX" ] || { echo "::error::widget extension missing"; exit 1; }
+          [ "$(get CFBundleIdentifier "$APPEX/Info.plist")" = "$BUNDLE_ID.widgets" ] || { echo "::error::wrong widget bundle id"; exit 1; }
+          [ "$(get CFBundleVersion "$APPEX/Info.plist")" = "$BUILD_NUMBER" ] || { echo "::error::widget build number differs"; exit 1; }
+          for b in "$APP" "$APPEX"; do
+            codesign -dvv "$b" 2>&1 | grep -q '^Authority=Apple Distribution' || { echo "::error::$b not signed for distribution"; exit 1; }
+            codesign -d --entitlements :- "$b" 2>/dev/null | grep -q "group.com.viraajrandhawa.182days" \
+              || { echo "::error::App Group entitlement missing from $b"; exit 1; }
+          done
+          echo "IPA verified"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: days-ios-${{ env.BUILD_NUMBER }}
+          path: ${{ env.IPA }}
+          retention-days: 14
+
+      - name: Upload to App Store Connect (TestFlight)
+        if: inputs.upload
+        run: |
+          set -euo pipefail
+          xcrun altool --upload-app --type ios --file "$IPA" --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
+          echo "Uploaded build $BUILD_NUMBER. Processing takes 10-60 min; it then appears under TestFlight." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Clean up signing material
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/signing.keychain-db" 2>/dev/null || true
+          rm -rf "$HOME/.appstoreconnect/private_keys" "$RUNNER_TEMP/ipa"
