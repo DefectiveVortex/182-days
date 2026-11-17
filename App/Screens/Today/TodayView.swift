@@ -26,6 +26,24 @@ struct TodayView: View {
                 pushUps
                 sitUps
                 posture
+                if let mark = model.letterDue {
+                    DueRow(
+                        label: "Letter · day \(mark)",
+                        line: "Write to day 182. It stays sealed until \(model.letterOpens?.formatted(.dateTime.day().month(.abbreviated)) ?? "then").",
+                        button: "Write",
+                        spoken: "Write a letter to day 182",
+                        action: actions.writeLetter
+                    )
+                }
+                if model.photoDue {
+                    DueRow(
+                        label: "Posture photo · week \(model.photoWeek)",
+                        line: model.photoWeek == 1 ? "The first one. It becomes the ghost every Sunday after." : "Line up with the week 1 ghost.",
+                        button: "Take",
+                        spoken: "Take this week's posture photo",
+                        action: actions.takePhoto
+                    )
+                }
                 if let block = model.block { NowBlock(block: block) }
             }
             .padding(.horizontal, Metrics.gutter)
@@ -263,6 +281,36 @@ private struct Banner: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Palette.accent)
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// Something today asks for once: a letter on a mark day, the weekly posture photo.
+private struct DueRow: View {
+    var label: String
+    var line: String
+    var button: String
+    var spoken: String
+    var action: @MainActor () -> Void
+    var body: some View {
+        RuledSection {
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text.label(label)
+                    Text(line)
+                        .textStyle(.caption)
+                        .foregroundStyle(Palette.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .accessibilityElement(children: .combine)
+                Spacer(minLength: 8)
+                OutlineButton(label: spoken) {
+                    Text(button).textStyle(.bodyMedium)
+                } action: {
+                    action()
+                }
+                .frame(width: 96)
+            }
+        }
     }
 }
 

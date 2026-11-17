@@ -34,6 +34,20 @@ struct HalfYearModel: Equatable, Sendable {
     /// Today so far (the last bar), and yesterday's count (nil on day 1 or after a slip).
     var todayValue: Int
     var yesterdayValue: Int?
+
+    /// Weekly posture photos, oldest first, and whether this week's is still to take.
+    var photos: [PhotoSummary] = []
+    var photoDue: Bool = false
+    /// Sealed and opened letters, oldest first; today's day of the half-year when it asks for one.
+    var letters: [LetterSummary] = []
+    var letterDue: Int?
+}
+
+/// What the 182 view can open. HalfYearScreen presents the sheets.
+struct HalfYearActions {
+    var writeLetter: @MainActor () -> Void = {}
+    var readLetter: @MainActor (LetterSummary) -> Void = { _ in }
+    var takePhoto: @MainActor () -> Void = {}
 }
 
 extension HalfYearModel {
@@ -126,18 +140,36 @@ extension HalfYearModel {
             perDay: perDay,
             firstDayValue: pushStats?.firstDayValue ?? 0,
             todayValue: todayValue,
-            yesterdayValue: yesterdayValue
+            yesterdayValue: yesterdayValue,
+            photos: PhotoSummary.all(store),
+            photoDue: store.isPhotoDay,
+            letters: LetterSummary.all(store),
+            letterDue: LetterSummary.dueToday(store)
         )
     }
 }
 
 struct HalfYearScreen: View {
     @Environment(LogStore.self) private var store
+    @State private var writing = false
+    @State private var photographing = false
+    @State private var reading: LetterSummary?
 
     var body: some View {
         TimelineView(.everyMinute) { _ in
-            HalfYearView(model: HalfYearModel(store: store))
+            HalfYearView(
+                model: HalfYearModel(store: store),
+                atEnd: LaunchScreen.argument == "182-end",
+                actions: HalfYearActions(
+                    writeLetter: { writing = true },
+                    readLetter: { reading = $0 },
+                    takePhoto: { photographing = true }
+                )
+            )
         }
+        .sheet(isPresented: $writing) { LetterSheet() }
+        .sheet(item: $reading) { LetterReadSheet(letter: $0) }
+        .fullScreenCover(isPresented: $photographing) { PostureCameraSheet() }
     }
 }
 
@@ -145,6 +177,9 @@ struct HalfYearScreen: View {
 
 struct HalfYearView: View {
     var model: HalfYearModel
+    /// `-screen 182-end`: start scrolled to the bottom (photos and letters).
+    var atEnd = false
+    var actions = HalfYearActions()
 
     var body: some View {
         ScrollView {
@@ -189,6 +224,11 @@ struct HalfYearView: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityHidden(true)
                 }
+
+                PhotoSection(photos: model.photos, due: model.photoDue, take: actions.takePhoto)
+
+                LetterList(letters: model.letters, due: model.letterDue,
+                           write: actions.writeLetter, read: actions.readLetter)
             }
             .padding(.horizontal, Metrics.gutter)
             .padding(.top, 8)
@@ -196,8 +236,63 @@ struct HalfYearView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .scrollBounceBehavior(.basedOnSize)
+        .defaultScrollAnchor(atEnd ? .bottom : .top)
         .background(Palette.background.ignoresSafeArea())
         .dynamicTypeSize(...DynamicTypeSize.accessibility2)
+    }
+}
+
+/// Letters at the foot of the 182 view (design/A-HalfYear): one ruled row each, a padlock while sealed.
+private struct LetterList: View {
+    var letters: [LetterSummary]
+    var due: Int?
+    var write: @MainActor () -> Void
+    var read: @MainActor (LetterSummary) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            if let due {
+                ruled {
+                    HStack(alignment: .center, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Day \(due) letter").textStyle(.bodyMedium).foregroundStyle(Palette.text)
+                            Text("Today asks for one. Write to day 182.")
+                                .textStyle(.caption).foregroundStyle(Palette.muted)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .accessibilityElement(children: .combine)
+                        Spacer(minLength: 8)
+                        OutlineButton(label: "Write a letter to day 182") {
+                            Text("Write").textStyle(.bodyMedium)
+                        } action: {
+                            write()
+                        }
+                        .frame(width: 96)
+                    }
+                }
+            }
+            if letters.isEmpty && due == nil {
+                ruled {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Letter to day 182").textStyle(.bodyMedium).foregroundStyle(Palette.text)
+                        Text("None written. Day 1 and every 30th day ask for one.")
+                            .textStyle(.caption).foregroundStyle(Palette.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityElement(children: .combine)
+                }
+            }
+            ForEach(letters) { letter in
+                ruled { LetterRowView(letter: letter) { read(letter) } }
+            }
+        }
+    }
+
+    private func ruled<C: View>(@ViewBuilder _ content: () -> C) -> some View {
+        content()
+            .padding(.top, 14)
+            .overlay(alignment: .top) { Rule() }
     }
 }
 

@@ -1,5 +1,6 @@
 import DaysCore
 import Foundation
+import UIKit
 
 /// `-demo <scenario>` (CI screenshots, .github/screenshots.txt). Owner: Days 2.
 /// Seeds the in-memory store with a believable history and fixes the clock at Tue 17 Nov 2026, 12:00,
@@ -10,6 +11,9 @@ import Foundation
 ///   ahead       day 23: past the ghost on push-ups and sit-ups
 ///   ended       two slips in a row ended attempt 1 yesterday; today is attempt 2, day 1
 ///   onboarding  nothing: a fresh install
+///
+/// Every scenario but onboarding also has the day-1 letter (sealed until day 182) and a posture photo on day 1
+/// and each Sunday since; `ahead` leaves out this week's, so Today asks for it.
 @MainActor
 enum DemoData {
     static func seed(_ store: LogStore, scenario: String) {
@@ -92,6 +96,58 @@ enum DemoData {
             ],
             schedule: schedule
         )
+
+        store.seedLetterForDemo(Letter(
+            written: first,
+            opens: LetterMarks.defaultOpens(written: first, firstDay: first),
+            text: "You started with 12 push-ups and a back that hurt by lunch. If you are reading this on day 182, you did not quit. Stand up straight and do one more set."
+        ))
+        var photoDays = [first]
+        var sunday = PhotoWeek.sunday(of: first).adding(7)
+        while sunday <= today { photoDays.append(sunday); sunday = sunday.adding(7) }
+        if scenario == "ahead" { photoDays.removeAll { $0 == PhotoWeek.sunday(of: today) } }
+        for (i, day) in photoDays.enumerated() {
+            let progress = photoDays.count > 1 ? CGFloat(i) / CGFloat(photoDays.count - 1) : 0
+            store.seedPhotoForDemo(posturePhoto(lean: 52 - 38 * progress), on: day)
+        }
+    }
+
+    /// A side-on figure against a wall, drawn rather than photographed: `lean` is how far the head sits
+    /// forward of the hips, in pixels of a 600×800 frame.
+    static func posturePhoto(lean: CGFloat) -> Data {
+        let size = CGSize(width: 600, height: 800)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = true
+        return UIGraphicsImageRenderer(size: size, format: format).jpegData(withCompressionQuality: 0.8) { ctx in
+            let c = ctx.cgContext
+            UIColor(white: 0.17, alpha: 1).setFill()
+            c.fill(CGRect(origin: .zero, size: size))
+            UIColor(white: 0.23, alpha: 1).setFill()
+            c.fill(CGRect(x: 0, y: 700, width: 600, height: 100))
+            let figure = UIColor(white: 0.58, alpha: 1)
+            figure.setStroke()
+            figure.setFill()
+            c.setLineCap(.round)
+            c.setLineJoin(.round)
+            let hip = CGPoint(x: 280, y: 470)
+            let shoulder = CGPoint(x: 284 + lean * 0.45, y: 285)
+            let head = CGPoint(x: 296 + lean, y: 200)
+            c.setLineWidth(48)
+            c.move(to: CGPoint(x: 292, y: 690))
+            c.addLine(to: CGPoint(x: 290, y: 585))
+            c.addLine(to: hip)
+            c.strokePath()
+            c.setLineWidth(96)
+            c.move(to: hip)
+            c.addQuadCurve(to: shoulder, control: CGPoint(x: hip.x - lean * 0.55, y: 385))
+            c.strokePath()
+            c.setLineWidth(36)
+            c.move(to: shoulder)
+            c.addLine(to: CGPoint(x: head.x - 6, y: head.y + 36))
+            c.strokePath()
+            c.fillEllipse(in: CGRect(x: head.x - 44, y: head.y - 52, width: 88, height: 100))
+        }
     }
 
     /// Tue 17 Nov 2026, 12:00 local.

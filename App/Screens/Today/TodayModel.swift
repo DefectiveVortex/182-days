@@ -49,6 +49,13 @@ struct TodayModel: Equatable, Sendable {
     var postureYesterdayUpright: Int?
 
     var block: Block?
+
+    /// Today asks for a letter (day 1, 30, 60… of the half-year) and none is written: that day, and when it opens.
+    var letterDue: Int?
+    var letterOpens: Date?
+    /// No posture photo yet this week (Sunday to Saturday); the week number it would be.
+    var photoDue: Bool = false
+    var photoWeek: Int = 1
 }
 
 /// The Today screen's actions. Closures so previews, `-demo` and the real store plug in the same way.
@@ -58,6 +65,8 @@ struct TodayActions {
     var undoPushUps: @MainActor () -> Void = {}
     var undoSitUps: @MainActor () -> Void = {}
     var answerPosture: @MainActor (PostureAnswer) -> Void = { _ in }
+    var writeLetter: @MainActor () -> Void = {}
+    var takePhoto: @MainActor () -> Void = {}
 }
 
 // MARK: - Copy

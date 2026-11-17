@@ -33,7 +33,7 @@ struct RootView: View {
     }
 }
 
-/// `-screen <name>` (CI screenshots): today | plan | log | 182 | onboarding | onboarding-numbers | onboarding-day.
+/// `-screen <name>` (CI screenshots): today | plan | log | 182 | 182-end | letter | camera | onboarding | onboarding-numbers | onboarding-day.
 enum LaunchScreen {
     static var argument: String? {
         let args = ProcessInfo.processInfo.arguments
@@ -58,10 +58,10 @@ enum AppTab: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     init?(screen: String) {
         switch screen {
-        case "today": self = .today
+        case "today", "letter", "camera": self = .today
         case "plan": self = .plan
         case "log": self = .log
-        case "182": self = .halfYear
+        case "182", "182-end": self = .halfYear
         default: return nil
         }
     }

@@ -4,12 +4,23 @@ import SwiftUI
 /// Today as the app shows it: Core's TodayState from the store, mapped to the screen model.
 struct TodayScreen: View {
     @Environment(LogStore.self) private var store
+    @State private var writing = LaunchScreen.argument == "letter"
+    @State private var photographing = LaunchScreen.argument == "camera"
 
     var body: some View {
         // Reading the store inside body observes its revision; a minute timeline rolls the day at 04:00.
         TimelineView(.everyMinute) { _ in
-            TodayView(model: TodayModel(store: store), actions: .live(store))
+            TodayView(model: TodayModel(store: store), actions: actions)
         }
+        .sheet(isPresented: $writing) { LetterSheet() }
+        .fullScreenCover(isPresented: $photographing) { PostureCameraSheet() }
+    }
+
+    private var actions: TodayActions {
+        var a = TodayActions.live(store)
+        a.writeLetter = { writing = true }
+        a.takePhoto = { photographing = true }
+        return a
     }
 }
 
@@ -65,6 +76,12 @@ extension TodayModel {
             postureYesterdayUpright: (yesterday?.answered ?? 0) > 0 ? yesterday?.value : nil,
             block: Self.block(schedule: store.schedule, day: today, now: state.now, clock: clock)
         )
+        letterDue = LetterSummary.dueToday(store)
+        if letterDue != nil {
+            letterOpens = clock.date(on: LetterSummary.opensForToday(store), at: ClockTime(hour: 12))
+        }
+        photoDue = store.isPhotoDay
+        photoWeek = PhotoSummary.weekToday(store)
     }
 
     /// The block running now and the one after it, if the schedule has one.
