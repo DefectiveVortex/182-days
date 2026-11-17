@@ -52,6 +52,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
                                             didReceive response: UNNotificationResponse) async {
         let action = response.actionIdentifier
         let text = (response as? UNTextInputNotificationResponse)?.userText
+        let category = response.notification.request.content.categoryIdentifier
+        if action == UNNotificationDefaultActionIdentifier, category == NotificationCategory.photo.rawValue {
+            await MainActor.run { AppRoute.shared.pending = "camera" }
+        }
         let store = await MainActor.run {
             let store = LogStore.current
             store.refresh()

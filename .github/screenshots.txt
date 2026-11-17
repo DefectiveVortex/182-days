@@ -8,3 +8,7 @@ onboarding-numbers -demo onboarding -screen onboarding-numbers
 onboarding-day -demo onboarding -screen onboarding-day
 plan -demo normal -screen plan
 182 -demo normal -screen 182
+log -demo normal -screen log
+182-end -demo normal -screen 182-end
+letter -demo normal -screen letter
+camera -demo normal -screen camera
