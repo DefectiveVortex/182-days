@@ -96,7 +96,7 @@ extension View {
 
 extension Text {
     /// A section label: uppercase Inter 600 12, tracked, muted.
-    static func label(_ string: String) -> some View {
+    @MainActor static func label(_ string: String) -> some View {
         Text(string.uppercased())
             .textStyle(.label)
             .foregroundStyle(Palette.muted)
