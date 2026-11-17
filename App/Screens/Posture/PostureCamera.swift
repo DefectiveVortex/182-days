@@ -112,7 +112,7 @@ struct PostureCameraSheet: View {
                         Text("\(countdown)")
                             .textStyle(.hero)
                             .foregroundStyle(Palette.text)
-                            .contentTransition(.numericText(countdown: true))
+                            .contentTransition(.numericText(countsDown: true))
                     }
                 }
             }
