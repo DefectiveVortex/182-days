@@ -202,11 +202,17 @@ public final class LogStore {
 
     /// Re-read after another process (a widget, an intent) wrote, and replan. Call when the app becomes active.
     public func refresh() {
+        reload()
+        afterWrite()
+    }
+
+    /// Re-read what another process wrote, with no side effects (no replan, no widget reload).
+    /// For the widget's timeline provider, which must not reload its own timelines.
+    public func reload() {
         context.rollback()
         settings = StoredBlob.load(DaysSettings.self, key: StoredBlob.settingsKey, in: context) ?? settings
         schedule = StoredBlob.load(WeekSchedule.self, key: StoredBlob.scheduleKey, in: context) ?? schedule
         revision += 1
-        afterWrite()
     }
 
     // MARK: Letters (sealed until they open; never edited or deleted)
