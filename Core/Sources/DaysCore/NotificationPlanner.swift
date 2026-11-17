@@ -13,6 +13,8 @@ public enum NotificationKind: String, Codable, Sendable {
     case nudge
     /// The previous attempt ended overnight; a new one starts today.
     case attemptEnded
+    /// Sunday: the weekly posture photo, until it is taken.
+    case photo
 }
 
 /// Notification categories, registered by the app with these actions.
@@ -25,6 +27,8 @@ public enum NotificationCategory: String, Codable, Sendable, CaseIterable {
     case close = "days.close"
     /// Actions: On it, Skip.
     case block = "days.block"
+    /// No actions: tapping opens the app (the camera needs it).
+    case photo = "days.photo"
 }
 
 public enum NotificationAction: String, Codable, Sendable, CaseIterable {
@@ -63,7 +67,7 @@ public enum NotificationPlanner {
 
     public static func plan(
         now: Date, clock: DayClock, settings: DaysSettings, today: TodayState, schedule: WeekSchedule,
-        horizonDays: Int = 2
+        photoDays: [DayKey] = [], horizonDays: Int = 2
     ) -> [PlannedNotification] {
         guard settings.isOnboarded else { return [] }
         var out: [PlannedNotification] = []
@@ -75,6 +79,7 @@ public enum NotificationPlanner {
                 ledger: ledger, now: now, clock: clock, settings: settings, schedule: schedule,
                 kept: isToday ? today.kept : false,
                 closed: isToday ? today.journalLine != nil : false,
+                photoDue: PhotoWeek.isDue(today: ledger.today, photoDays: photoDays),
                 today: isToday ? today : nil)
         }
         out.sort { $0.fireDate < $1.fireDate }
@@ -83,7 +88,7 @@ public enum NotificationPlanner {
 
     static func planDay(
         ledger: Ledger, now: Date, clock: DayClock, settings: DaysSettings, schedule: WeekSchedule,
-        kept: Bool, closed: Bool, today: TodayState?
+        kept: Bool, closed: Bool, photoDue: Bool = false, today: TodayState?
     ) -> [PlannedNotification] {
         let day = ledger.today
         let n = ledger.dayNumber
@@ -143,6 +148,11 @@ public enum NotificationPlanner {
             let at = clock.date(on: day, at: b.start)
             capped.append((1, make("block-\(b.id.uuidString)", .block, at, b.title,
                                    "Starts now, \(b.minutes) min.", .block, block: b.id)))
+        }
+
+        if photoDue && day.weekday == 1 {
+            capped.append((1, make("photo", .photo, wake.addingTimeInterval(60 * 60), "Posture photo",
+                                   "Sunday. Stand where you stood in week 1.", .photo)))
         }
 
         let pings = max(0, settings.posturePingsPerDay)

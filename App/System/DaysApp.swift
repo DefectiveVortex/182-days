@@ -52,11 +52,13 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
                                             didReceive response: UNNotificationResponse) async {
         let action = response.actionIdentifier
         let text = (response as? UNTextInputNotificationResponse)?.userText
-        await MainActor.run {
+        let store = await MainActor.run {
             let store = LogStore.current
             store.refresh()
             NotificationScheduler.handle(action: action, text: text, store: store)
+            return store
         }
+        await store.settle()
     }
 
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter,

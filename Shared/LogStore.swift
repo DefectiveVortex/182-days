@@ -28,8 +28,13 @@ public final class LogStore {
     @ObservationIgnored public var timeZone: @Sendable () -> TimeZone = { TimeZone.current }
     /// In-memory demo store: never touches notifications or widgets.
     @ObservationIgnored public let isEphemeral: Bool
+    /// Weekly posture photos, one JPEG per day (`<day ordinal>.jpg`), next to the store.
+    @ObservationIgnored public let photosDirectory: URL
 
     @ObservationIgnored private var cache: (revision: Int, entries: [Entry], journal: [DayKey: String])?
+    /// Replans run one at a time; writes made before a queued replan starts share it.
+    @ObservationIgnored private var replanTask: Task<Void, Never>?
+    @ObservationIgnored private var replanQueued = false
 
     // MARK: Process-wide store
 
@@ -52,12 +57,15 @@ public final class LogStore {
     public static func inMemory() throws -> LogStore { try LogStore(url: nil) }
 
     init(url: URL?) throws {
-        let schema = Schema([LogEntry.self, JournalLine.self, StoredBlob.self])
+        let schema = Schema([LogEntry.self, JournalLine.self, StoredBlob.self, LetterRecord.self])
         let config = url.map { ModelConfiguration(schema: schema, url: $0) }
             ?? ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         let c = try ModelContainer(for: schema, configurations: config)
         container = c
         isEphemeral = url == nil
+        photosDirectory = url.map { $0.deletingLastPathComponent().appendingPathComponent("PosturePhotos") }
+            ?? FileManager.default.temporaryDirectory.appendingPathComponent("DaysDemoPhotos-\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: photosDirectory, withIntermediateDirectories: true)
         let ctx = c.mainContext
         settings = StoredBlob.load(DaysSettings.self, key: StoredBlob.settingsKey, in: ctx) ?? DaysSettings()
         schedule = StoredBlob.load(WeekSchedule.self, key: StoredBlob.scheduleKey, in: ctx) ?? WeekSchedule()
@@ -170,7 +178,7 @@ public final class LogStore {
             $0.eveningClose = eveningClose
         }
         if !isEphemeral {
-            Task { await NotificationScheduler.requestAuthorization(); await NotificationScheduler.replan(self) }
+            Task { await NotificationScheduler.requestAuthorization(); scheduleReplan() }
         }
     }
 
@@ -194,14 +202,84 @@ public final class LogStore {
 
     /// Re-read after another process (a widget, an intent) wrote, and replan. Call when the app becomes active.
     public func refresh() {
+        reload()
+        afterWrite()
+    }
+
+    /// Re-read what another process wrote, with no side effects (no replan, no widget reload).
+    /// For the widget's timeline provider, which must not reload its own timelines.
+    public func reload() {
         context.rollback()
         settings = StoredBlob.load(DaysSettings.self, key: StoredBlob.settingsKey, in: context) ?? settings
         schedule = StoredBlob.load(WeekSchedule.self, key: StoredBlob.scheduleKey, in: context) ?? schedule
         revision += 1
-        afterWrite()
+    }
+
+    // MARK: Letters (sealed until they open; never edited or deleted)
+
+    /// Every letter, oldest first. A letter's text is only for display once `isOpen(on: today().day)`.
+    public func letters() -> [Letter] {
+        _ = revision
+        let rows = (try? context.fetch(FetchDescriptor<LetterRecord>(sortBy: [SortDescriptor(\.at)]))) ?? []
+        return rows.map(\.letter)
+    }
+
+    /// Seals a letter written today. Refuses empty text or an opening day that is not after today.
+    /// `LetterMarks.defaultOpens` gives the usual opening day (day 182 of this half-year).
+    @discardableResult
+    public func writeLetter(_ text: String, opens: DayKey) -> Letter? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let day = today().day
+        guard !trimmed.isEmpty, opens > day else { return nil }
+        let letter = Letter(written: day, opens: opens, text: trimmed)
+        context.insert(LetterRecord(letter, at: now()))
+        commit()
+        return letter
+    }
+
+    // MARK: Posture photos
+
+    /// Every posture photo, oldest first. The first one is the ghost overlay.
+    public func posturePhotos() -> [(day: DayKey, url: URL)] {
+        _ = revision
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: photosDirectory.path)) ?? []
+        return names.compactMap { name -> (day: DayKey, url: URL)? in
+            guard name.hasSuffix(".jpg"), let ordinal = Int(name.dropLast(4)) else { return nil }
+            return (DayKey(ordinal: ordinal), photosDirectory.appendingPathComponent(name))
+        }.sorted { $0.day < $1.day }
+    }
+
+    /// No photo yet since this week's Sunday (and the very first one is due at once).
+    public var isPhotoDay: Bool {
+        PhotoWeek.isDue(today: today().day, photoDays: posturePhotos().map(\.day))
+    }
+
+    /// Saves today's photo, replacing any earlier one from today.
+    @discardableResult
+    public func savePosturePhoto(_ jpeg: Data) -> Bool {
+        guard !jpeg.isEmpty else { return false }
+        let url = photosDirectory.appendingPathComponent("\(today().day.ordinal).jpg")
+        do { try jpeg.write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication]) }
+        catch { print("LogStore photo save failed: \(error)"); return false }
+        commit()
+        return true
     }
 
     // MARK: Demo
+
+    /// `-demo` only: a posture photo on any day (the live store saves today's only).
+    public func seedPhotoForDemo(_ jpeg: Data, on day: DayKey) {
+        precondition(isEphemeral, "seedPhotoForDemo is for the in-memory demo store")
+        try? jpeg.write(to: photosDirectory.appendingPathComponent("\(day.ordinal).jpg"))
+        revision += 1
+    }
+
+    /// `-demo` only: a letter written on any day.
+    public func seedLetterForDemo(_ letter: Letter) {
+        precondition(isEphemeral, "seedLetterForDemo is for the in-memory demo store")
+        context.insert(LetterRecord(letter, at: now()))
+        commit()
+    }
 
     /// `-demo` only: replaces everything with sample data, past days included.
     public func seedForDemo(settings: DaysSettings, entries: [Entry], journal: [DayKey: String],
@@ -240,7 +318,27 @@ public final class LogStore {
     private func afterWrite() {
         guard !isEphemeral else { return }
         WidgetCenter.shared.reloadAllTimelines()
-        Task { await NotificationScheduler.replan(self) }
+        scheduleReplan()
+    }
+
+    private func scheduleReplan() {
+        guard !replanQueued else { return }
+        replanQueued = true
+        let previous = replanTask
+        replanTask = Task {
+            await previous?.value
+            self.replanQueued = false
+            await NotificationScheduler.replan(self)
+        }
+    }
+
+    /// Waits until pending notifications match the latest write. Background callers (notification actions,
+    /// intents) await this before returning, or iOS may suspend them before must reminders are cancelled.
+    public func settle() async {
+        while let task = replanTask {
+            await task.value
+            if task == replanTask { break }
+        }
     }
 }
 
@@ -280,6 +378,27 @@ public final class JournalLine {
         self.dayOrdinal = dayOrdinal
         self.text = text
         self.at = at
+    }
+}
+
+@Model
+public final class LetterRecord {
+    public var id: UUID = UUID()
+    public var writtenOrdinal: Int = 0
+    public var opensOrdinal: Int = 0
+    public var text: String = ""
+    public var at: Date = Date.distantPast
+
+    init(_ l: Letter, at: Date) {
+        id = l.id
+        writtenOrdinal = l.written.ordinal
+        opensOrdinal = l.opens.ordinal
+        text = l.text
+        self.at = at
+    }
+
+    var letter: Letter {
+        Letter(id: id, written: DayKey(ordinal: writtenOrdinal), opens: DayKey(ordinal: opensOrdinal), text: text)
     }
 }
 

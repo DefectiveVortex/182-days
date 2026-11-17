@@ -45,6 +45,7 @@ targets:
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         UIApplicationSupportsIndirectInputEvents: true
         NSSupportsLiveActivities: false
+        NSCameraUsageDescription: "Takes your weekly posture photo. It stays on this phone."
         UIAppFonts:
           - BarlowCondensed-Medium.ttf
           - BarlowCondensed-SemiBold.ttf
@@ -68,6 +69,10 @@ targets:
     sources:
       - path: Widgets
       - path: Shared
+      # Days 2's look (tokens, type, ghost bar) and the bundled fonts, compiled into the widget too.
+      - path: App/Theme
+      - path: App/Resources/Fonts
+        buildPhase: resources
     dependencies:
       - package: DaysCore
         product: DaysCore
