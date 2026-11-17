@@ -167,8 +167,8 @@ struct HalfYearScreen: View {
                 )
             )
         }
-        .sheet(isPresented: $writing) { LetterSheet() }
-        .sheet(item: $reading) { LetterReadSheet(letter: $0) }
+        .fullScreenCover(isPresented: $writing) { LetterSheet() }
+        .fullScreenCover(item: $reading) { LetterReadSheet(letter: $0) }
         .fullScreenCover(isPresented: $photographing) { PostureCameraSheet() }
     }
 }

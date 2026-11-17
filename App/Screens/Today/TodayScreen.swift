@@ -12,7 +12,7 @@ struct TodayScreen: View {
         TimelineView(.everyMinute) { _ in
             TodayView(model: TodayModel(store: store), actions: actions)
         }
-        .sheet(isPresented: $writing) { LetterSheet() }
+        .fullScreenCover(isPresented: $writing) { LetterSheet() }
         .fullScreenCover(isPresented: $photographing) { PostureCameraSheet() }
         .onChange(of: AppRoute.shared.pending, initial: true) { _, pending in
             switch pending {
