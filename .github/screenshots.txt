@@ -1,0 +1,4 @@
+# One screenshot per line: <name> <launch arguments...>
+# The app is launched with these arguments on a booted iPhone simulator; the PNG is saved as <name>.png.
+# Days 2 says which screens/states; Days 1 keeps this list.
+today -demo normal

@@ -1,0 +1,93 @@
+# XcodeGen spec. CI runs `xcodegen generate`; the .xcodeproj and Support/ are never committed.
+# Owner: Days 1. Ask before changing.
+name: Days
+options:
+  bundleIdPrefix: com.viraajrandhawa
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+  developmentLanguage: en
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    CODE_SIGN_STYLE: Automatic
+    TARGETED_DEVICE_FAMILY: "1"
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+packages:
+  DaysCore:
+    path: Core
+targets:
+  Days:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+      - path: Shared
+    dependencies:
+      - package: DaysCore
+        product: DaysCore
+      - target: DaysWidgets
+    info:
+      path: Support/App-Info.plist
+      properties:
+        CFBundleDisplayName: "182 Days"
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        ITSAppUsesNonExemptEncryption: false
+        LSRequiresIPhoneOS: true
+        UILaunchScreen:
+          UIColorName: ""
+        UIUserInterfaceStyle: Dark
+        UIStatusBarStyle: UIStatusBarStyleLightContent
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UIApplicationSupportsIndirectInputEvents: true
+        NSSupportsLiveActivities: false
+    entitlements:
+      path: Support/Days.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.viraajrandhawa.182days]
+    settings:
+      base:
+        PRODUCT_NAME: Days
+        PRODUCT_BUNDLE_IDENTIFIER: com.viraajrandhawa.182days
+  DaysWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Widgets
+      - path: Shared
+    dependencies:
+      - package: DaysCore
+        product: DaysCore
+      - sdk: WidgetKit.framework
+      - sdk: SwiftUI.framework
+    info:
+      path: Support/Widgets-Info.plist
+      properties:
+        CFBundleDisplayName: "182 Days"
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: Support/DaysWidgets.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.viraajrandhawa.182days]
+    settings:
+      base:
+        PRODUCT_NAME: DaysWidgets
+        PRODUCT_BUNDLE_IDENTIFIER: com.viraajrandhawa.182days.widgets
+        SKIP_INSTALL: YES
+schemes:
+  Days:
+    build:
+      targets:
+        Days: all
+        DaysWidgets: all
+    run:
+      config: Debug
+    archive:
+      config: Release
