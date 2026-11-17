@@ -6,7 +6,8 @@ import SwiftUI
 /// - Marks are 2 × 24 pt, 4 pt apart; four uprights plus a slash make a 22 pt group.
 /// - Groups wrap with 9 pt between them and 10 pt between rows.
 /// - Today's marks are cream; marks past yesterday's count are orange.
-/// - Yesterday's marks not yet matched today stay dashed in the ghost colour.
+/// - Yesterday's marks not yet matched today stay solid in the dim ghost colour (dashes blurred at phone size).
+/// - With nothing today and no ghost, one empty group in the rule colour holds the row's place.
 struct GhostTally: View {
     var today: Int
     var ghost: Int
@@ -14,6 +15,9 @@ struct GhostTally: View {
     var body: some View {
         let total = max(today, ghost, 0)
         FlowLayout(spacing: 9, lineSpacing: 10) {
+            if total == 0 {
+                TallyGroup(start: 0, count: 5, today: 0, ghost: 0, empty: true)
+            }
             ForEach(Array(stride(from: 0, to: total, by: 5)), id: \.self) { start in
                 TallyGroup(start: start, count: min(5, total - start), today: today, ghost: ghost)
             }
@@ -47,12 +51,7 @@ enum MarkStyle: Equatable {
         }
     }
 
-    var stroke: StrokeStyle {
-        switch self {
-        case .ghost: StrokeStyle(lineWidth: 2, lineCap: .butt, dash: [5, 4.5])
-        default: StrokeStyle(lineWidth: 2, lineCap: .butt)
-        }
-    }
+    var stroke: StrokeStyle { StrokeStyle(lineWidth: 2, lineCap: .butt) }
 }
 
 private struct TallyGroup: View {
@@ -60,6 +59,7 @@ private struct TallyGroup: View {
     let count: Int
     let today: Int
     let ghost: Int
+    var empty = false
 
     static let markHeight: CGFloat = 24
     static let width: CGFloat = 22
@@ -69,12 +69,12 @@ private struct TallyGroup: View {
             ForEach(0..<min(count, 4), id: \.self) { j in
                 let style = MarkStyle(index: start + j, today: today, ghost: ghost)
                 Upright(x: CGFloat(j) * 6 + 1)
-                    .stroke(style.color, style: style.stroke)
+                    .stroke(empty ? Palette.rule : style.color, style: style.stroke)
             }
             if count == 5 {
                 let style = MarkStyle(index: start + 4, today: today, ghost: ghost)
                 Slash()
-                    .stroke(style.color, style: style.stroke)
+                    .stroke(empty ? Palette.rule : style.color, style: style.stroke)
             }
         }
         .frame(width: Self.width, height: Self.markHeight)

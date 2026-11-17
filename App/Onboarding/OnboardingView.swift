@@ -216,9 +216,11 @@ private struct NumberField: View {
             HStack(alignment: .firstTextBaseline) {
                 Text.label(label)
                 Spacer()
-                Text(value == 0 ? "starting from nothing" : "ghost \(value)")
-                    .textStyle(.note)
-                    .foregroundStyle(Palette.muted)
+                if value == 0 {
+                    Text("starting from nothing")
+                        .textStyle(.note)
+                        .foregroundStyle(Palette.muted)
+                }
             }
             Text("\(value)")
                 .textStyle(.count)
