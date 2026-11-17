@@ -1,4 +1,8 @@
-# One screenshot per line: <name> <launch arguments...>
-# The app is launched with these arguments on a booted iPhone simulator; the PNG is saved as <name>.png.
-# Days 2 says which screens/states; Days 1 keeps this list.
-today -demo normal
+# <name> <launch args>   (one screenshot each; Days 2 picks the screens)
+today -demo normal -screen today
+today-must -demo must -screen today
+today-ahead -demo ahead -screen today
+today-ended -demo ended -screen today
+onboarding -demo onboarding -screen onboarding
+onboarding-numbers -demo onboarding -screen onboarding-numbers
+onboarding-day -demo onboarding -screen onboarding-day
