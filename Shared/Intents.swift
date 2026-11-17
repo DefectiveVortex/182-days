@@ -21,6 +21,7 @@ public struct LogPracticeIntent: AppIntent {
     public func perform() async throws -> some IntentResult {
         LogStore.current.refresh()
         LogStore.current.log(PracticeID(practice), amount)
+        await LogStore.current.settle()
         return .result()
     }
 }
@@ -40,6 +41,7 @@ public struct AnswerPostureIntent: AppIntent {
     public func perform() async throws -> some IntentResult {
         LogStore.current.refresh()
         LogStore.current.answerPosture(upright: upright)
+        await LogStore.current.settle()
         return .result()
     }
 }
@@ -59,6 +61,7 @@ public struct UndoLastIntent: AppIntent {
     public func perform() async throws -> some IntentResult {
         LogStore.current.refresh()
         LogStore.current.undoLast(PracticeID(practice))
+        await LogStore.current.settle()
         return .result()
     }
 }

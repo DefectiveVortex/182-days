@@ -45,6 +45,7 @@ targets:
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         UIApplicationSupportsIndirectInputEvents: true
         NSSupportsLiveActivities: false
+        NSCameraUsageDescription: "Takes your weekly posture photo. It stays on this phone."
         UIAppFonts:
           - BarlowCondensed-Medium.ttf
           - BarlowCondensed-SemiBold.ttf

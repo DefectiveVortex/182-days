@@ -31,6 +31,7 @@ public enum NotificationScheduler {
             UNNotificationCategory(identifier: NotificationCategory.block.rawValue,
                                    actions: [action(.blockOnIt, "On it"), action(.blockSkip, "Skip")],
                                    intentIdentifiers: []),
+            UNNotificationCategory(identifier: NotificationCategory.photo.rawValue, actions: [], intentIdentifiers: []),
         ]
         UNUserNotificationCenter.current().setNotificationCategories(categories)
     }
@@ -42,7 +43,8 @@ public enum NotificationScheduler {
         let settings = await center.notificationSettings()
         guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else { return }
         let plan = NotificationPlanner.plan(now: store.now(), clock: store.clock, settings: store.settings,
-                                            today: store.today(), schedule: store.schedule)
+                                            today: store.today(), schedule: store.schedule,
+                                            photoDays: store.posturePhotos().map(\.day))
         let pending = await center.pendingNotificationRequests().map(\.identifier).filter { $0.hasPrefix(idPrefix) }
         center.removePendingNotificationRequests(withIdentifiers: pending)
         // Delivered must-day reminders are stale once the day is kept.
@@ -74,7 +76,10 @@ public enum NotificationScheduler {
         case .sitUps10: store.log(.sitUps, 10)
         case .upright: store.answerPosture(upright: true)
         case .slouching: store.answerPosture(upright: false)
-        case .closeLine: if let text { store.setJournalLine(text) }
+        case .closeLine:
+            if let line = text?.trimmingCharacters(in: .whitespacesAndNewlines), !line.isEmpty {
+                store.setJournalLine(line)
+            }
         case .blockOnIt, .blockSkip, nil: break // M2: block answers
         }
     }
