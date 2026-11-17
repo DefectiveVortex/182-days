@@ -20,7 +20,7 @@ struct RootView: View {
         Group {
             switch tab {
             case .today: TodayScreen()
-            case .plan: Placeholder(title: "Plan", line: "Your week, hour by hour.")
+            case .plan: PlanScreen()
             case .log: Placeholder(title: "Log", line: "Every day you've closed.")
             case .halfYear: HalfYearScreen()
             }

@@ -59,8 +59,20 @@ enum DemoData {
 
         var schedule = WeekSchedule()
         for weekday in 1...7 {
-            schedule.blocks.append(ScheduleBlock(weekday: weekday, start: ClockTime(hour: 12), minutes: 180, title: "Study block"))
-            schedule.blocks.append(ScheduleBlock(weekday: weekday, start: ClockTime(hour: 15), minutes: 45, title: "Walk"))
+            func block(_ h: Int, _ m: Int, _ minutes: Int, _ title: String, _ p: PracticeID? = nil, notify: Bool = true) {
+                schedule.blocks.append(ScheduleBlock(weekday: weekday, start: ClockTime(hour: h, minute: m), minutes: minutes,
+                                                     title: title, practice: p, notify: notify))
+            }
+            block(7, 30, 20, "Push-ups", .pushUps)
+            if (2...6).contains(weekday) {
+                block(9, 0, 120, "Classes", notify: false)
+                block(12, 0, 180, "Study block")
+                block(15, 0, 45, "Walk")
+            } else {
+                block(10, 0, 90, "Long walk")
+            }
+            block(19, 0, 20, "Sit-ups", .sitUps)
+            block(21, 30, 30, "Read", notify: false)
         }
 
         store.seedForDemo(
