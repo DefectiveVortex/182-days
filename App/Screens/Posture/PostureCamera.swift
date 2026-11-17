@@ -215,8 +215,9 @@ struct PostureCameraSheet: View {
                     .opacity(status == .live ? 1 : 0.35)
                 }
                 PhotosPicker(selection: $picked, matching: .images) {
+                    // The label closure isn't main-actor isolated, so no .textStyle here.
                     Text("Choose from photos")
-                        .textStyle(.bodyMedium)
+                        .font(TextStyle.bodyMedium.font)
                         .foregroundStyle(status == .live ? Palette.muted : Palette.text)
                         .frame(maxWidth: .infinity, minHeight: Metrics.minTarget)
                         .contentShape(Rectangle())
