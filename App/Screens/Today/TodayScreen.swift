@@ -14,6 +14,18 @@ struct TodayScreen: View {
         }
         .sheet(isPresented: $writing) { LetterSheet() }
         .fullScreenCover(isPresented: $photographing) { PostureCameraSheet() }
+        .onChange(of: AppRoute.shared.pending, initial: true) { _, pending in
+            switch pending {
+            case "camera":
+                writing = false
+                photographing = true
+            case "letter":
+                photographing = false
+                writing = true
+            default: return
+            }
+            AppRoute.shared.pending = nil
+        }
     }
 
     private var actions: TodayActions {

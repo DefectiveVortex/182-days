@@ -28,6 +28,10 @@ struct RootView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Palette.background.ignoresSafeArea())
         .safeAreaInset(edge: .bottom, spacing: 0) { TabBar(selection: $tab) }
+        // A notification tap: go to the tab that handles it; that screen clears the route.
+        .onChange(of: AppRoute.shared.pending, initial: true) { _, pending in
+            if let pending, let target = AppTab(screen: pending) { tab = target }
+        }
         .preferredColorScheme(.dark)
         .tint(Palette.accent)
     }
