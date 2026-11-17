@@ -21,7 +21,7 @@ struct RootView: View {
             switch tab {
             case .today: TodayScreen()
             case .plan: PlanScreen()
-            case .log: Placeholder(title: "Log", line: "Every day you've closed.")
+            case .log: LogScreen()
             case .halfYear: HalfYearScreen()
             }
         }
@@ -143,21 +143,6 @@ private struct TabIcon: Shape {
             }
         }
         return p
-    }
-}
-
-/// A quiet stand-in for screens that arrive in later milestones.
-private struct Placeholder: View {
-    var title: String
-    var line: String
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title.uppercased()).textStyle(.dayNumber).foregroundStyle(Palette.text)
-            Text(line).textStyle(.caption).foregroundStyle(Palette.muted)
-        }
-        .padding(.horizontal, Metrics.gutter)
-        .padding(.top, 8)
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

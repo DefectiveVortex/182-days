@@ -82,7 +82,14 @@ enum DemoData {
                 posturePingsPerDay: 6
             ),
             entries: entries,
-            journal: [today.previous: "Did the second set without stopping."],
+            journal: [
+                today.adding(-1): "Did the second set without stopping.",
+                today.adding(-2): "Sat up straight through the whole lecture.",
+                today.adding(-3): "Walked instead of the bus.",
+                today.adding(-5): "Pushed past the ghost on sit-ups.",
+                today.adding(-7): "Hard day. Did the minimum and it counted.",
+                today.adding(-13): "Back after the slip.",
+            ],
             schedule: schedule
         )
     }

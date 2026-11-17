@@ -31,8 +31,9 @@ struct HalfYearModel: Equatable, Sendable {
     /// Push-ups per day of the attempt (at most the last 182); nil = a slip.
     var perDay: [Int?]
     var firstDayValue: Int
-    var latestValue: Int
-    var latestIsToday: Bool
+    /// Today so far (the last bar), and yesterday's count (nil on day 1 or after a slip).
+    var todayValue: Int
+    var yesterdayValue: Int?
 }
 
 extension HalfYearModel {
@@ -60,7 +61,10 @@ extension HalfYearModel {
     }
 
     var perDayLine: String {
-        "Push-ups per day. \(firstDayValue) on day one. \(latestValue) \(latestIsToday ? "today" : "last time")."
+        let yesterday = yesterdayValue.map { "\($0) yesterday, " } ?? ""
+        return run <= 1
+            ? "Push-ups per day. \(todayValue) so far on day one."
+            : "Push-ups per day. \(firstDayValue) on day one. \(yesterday)\(todayValue) so far today."
     }
 }
 
@@ -103,6 +107,9 @@ extension HalfYearModel {
             d == ledger.today || ledger.keptDays.contains(d) ? push.value(of: byDay[d] ?? []) : nil
         }
         let todayValue = push.value(of: byDay[ledger.today] ?? [])
+        let yesterday = ledger.today.previous
+        let yesterdayValue = ledger.dayNumber > 1 && ledger.keptDays.contains(yesterday)
+            ? push.value(of: byDay[yesterday] ?? []) : nil
         let pushStats = stats.practices.first { $0.practice.id == push.id }
 
         self.init(
@@ -118,8 +125,8 @@ extension HalfYearModel {
             totals: totals,
             perDay: perDay,
             firstDayValue: pushStats?.firstDayValue ?? 0,
-            latestValue: pushStats?.latestValue ?? 0,
-            latestIsToday: todayValue > 0
+            todayValue: todayValue,
+            yesterdayValue: yesterdayValue
         )
     }
 }
@@ -171,7 +178,7 @@ struct HalfYearView: View {
 
                 VStack(alignment: .leading, spacing: 10) {
                     Text.label("First day vs now")
-                    PerDayBars(values: model.perDay)
+                    PerDayBars(values: model.perDay, ghost: model.yesterdayValue)
                         .frame(height: 96)
                         .accessibilityElement()
                         .accessibilityLabel(Text(model.perDayLine))
@@ -314,9 +321,11 @@ private struct StatCell: View {
     }
 }
 
-/// Push-ups per day: cream bars, today in orange, a slip as an orange baseline.
+/// Push-ups per day: cream bars, a slip as an orange baseline. Today is unfinished, so it is drawn
+/// the ghost way: an outline at yesterday's height, orange filled up to today's count.
 private struct PerDayBars: View {
     var values: [Int?]
+    var ghost: Int?
 
     var body: some View {
         Canvas { ctx, size in
@@ -324,7 +333,7 @@ private struct PerDayBars: View {
             let n = CGFloat(values.count)
             let gap: CGFloat = values.count > 60 ? 1 : 4
             let w = max(1, (size.width - gap * (n - 1)) / n)
-            let top = CGFloat(max(1, values.compactMap { $0 }.max() ?? 1))
+            let top = CGFloat(max(1, (values.compactMap { $0 } + [ghost ?? 0]).max() ?? 1))
             for (i, v) in values.enumerated() {
                 let x = CGFloat(i) * (w + gap)
                 let last = i == values.count - 1
@@ -333,8 +342,19 @@ private struct PerDayBars: View {
                     continue
                 }
                 let h = max(2, (CGFloat(v) / top * size.height).rounded())
+                if last {
+                    if let ghost, ghost > 0 {
+                        let gh = (CGFloat(ghost) / top * size.height).rounded()
+                        ctx.stroke(Path(CGRect(x: x + 0.5, y: size.height - gh + 0.5, width: w - 1, height: gh - 1)),
+                                   with: .color(Palette.ghost), lineWidth: 1)
+                    }
+                    if v > 0 {
+                        ctx.fill(Path(CGRect(x: x, y: size.height - h, width: w, height: h)), with: .color(Palette.accent))
+                    }
+                    continue
+                }
                 ctx.fill(Path(CGRect(x: x, y: size.height - h, width: w, height: h)),
-                         with: .color(last ? Palette.accent : (v == 0 ? Palette.ghost : Palette.text)))
+                         with: .color(v == 0 ? Palette.ghost : Palette.text))
             }
         }
     }
@@ -344,7 +364,7 @@ private struct PerDayBars: View {
 
 extension HalfYearModel {
     static let preview: HalfYearModel = {
-        let push = [12, 14, 15, 15, 17, 18, 20, 20, 0, 21, 22, 22, 24, 25, 25, 27, 28, 28, 30, 30, 31, 31, 34]
+        let push = [12, 14, 15, 15, 17, 18, 20, 20, 0, 21, 22, 22, 24, 25, 25, 27, 28, 28, 30, 30, 31, 34, 18]
         var cells: [Cell] = (1...182).map { $0 < 23 ? .done : ($0 == 23 ? .today : .future) }
         cells[8] = .slip
         return HalfYearModel(
@@ -354,7 +374,7 @@ extension HalfYearModel {
             totals: [Total(name: "Push-ups", total: 509, best: 34, bestWhen: "today"),
                      Total(name: "Sit-ups", total: 958, best: 60, bestWhen: "today")],
             perDay: push.enumerated().map { $0.offset == 8 ? nil : $0.element },
-            firstDayValue: 12, latestValue: 34, latestIsToday: true
+            firstDayValue: 12, todayValue: 18, yesterdayValue: 34
         )
     }()
 }
