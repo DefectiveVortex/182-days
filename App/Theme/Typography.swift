@@ -52,6 +52,9 @@ enum TextStyle {
     case body           // posture line       Inter 400 14
     case bodyMedium     // "Log a set"        Inter 500 14
     case tab            // tab bar            Inter 600 11
+    case headline       // "23 IN. 159 TO GO." Barlow 700 40
+    case stat           // "23 DAYS"          Barlow 700 34
+    case small          // grid dates, legend Inter 400 11
 
     var font: Font {
         Typeface.registerIfNeeded()
@@ -71,6 +74,9 @@ enum TextStyle {
         case .body: return .custom(Typeface.Inter.regular.rawValue, size: 14, relativeTo: .subheadline)
         case .bodyMedium: return .custom(Typeface.Inter.medium.rawValue, size: 14, relativeTo: .subheadline)
         case .tab: return .custom(Typeface.Inter.semibold.rawValue, size: 11, relativeTo: .caption2)
+        case .headline: return .custom(Typeface.Barlow.bold.rawValue, size: 40, relativeTo: .largeTitle)
+        case .stat: return .custom(Typeface.Barlow.bold.rawValue, size: 34, relativeTo: .title)
+        case .small: return .custom(Typeface.Inter.regular.rawValue, size: 11, relativeTo: .caption2)
         }
     }
 

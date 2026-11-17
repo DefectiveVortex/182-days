@@ -22,7 +22,7 @@ struct RootView: View {
             case .today: TodayScreen()
             case .plan: Placeholder(title: "Plan", line: "Your week, hour by hour.")
             case .log: Placeholder(title: "Log", line: "Every day you've closed.")
-            case .halfYear: Placeholder(title: "182", line: "The half-year at a glance.")
+            case .halfYear: HalfYearScreen()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
